@@ -1,3 +1,9 @@
+/************************************************************
+
+	这个文件是关于定时器的，应该是十分重要的
+
+*************************************************************/
+
 /*
  * Copyright (c) 2010, Swedish Institute of Computer Science.
  * All rights reserved.
@@ -41,35 +47,47 @@
  * @{
  */
 
+/* include 一些头文件 */
 #include "contiki-conf.h"
 #include "net/rpl/rpl-private.h"
 #include "net/ipv6/multicast/uip-mcast6.h"
 #include "lib/random.h"
 #include "sys/ctimer.h"
 
-#define DEBUG DEBUG_NONE
+/* 一如既往的打开debug */
+#define DEBUG DEBUG_FULL
 #include "net/ip/uip-debug.h"
 
 /*---------------------------------------------------------------------------*/
+// 这个东西如果直译应该是周期定时器
 static struct ctimer periodic_timer;
 
+// 周期处理定时器
 static void handle_periodic_timer(void *ptr);
+// 新dio间隔
 static void new_dio_interval(rpl_instance_t *instance);
+// dio处理定时器
 static void handle_dio_timer(void *ptr);
 
+// 下一个dis
 static uint16_t next_dis;
 
+// 如果send_ok是true那么就是节点已经发送了DIS
 /* dio_send_ok is true if the node is ready to send DIOs */
 static uint8_t dio_send_ok;
 
 /*---------------------------------------------------------------------------*/
+/* 周期处理定时器 */
 static void
 handle_periodic_timer(void *ptr)
 {
+  // rpl清理路由
   rpl_purge_routes();
+  // rpl重新计算rank
   rpl_recalculate_ranks();
 
   /* handle DIS */
+  /* 处理DIS */
 #if RPL_DIS_SEND
   next_dis++;
   if(rpl_get_any_dag() == NULL && next_dis >= RPL_DIS_INTERVAL) {
@@ -77,9 +95,11 @@ handle_periodic_timer(void *ptr)
     dis_output(NULL);
   }
 #endif
+  //重置周期定时器
   ctimer_reset(&periodic_timer);
 }
 /*---------------------------------------------------------------------------*/
+/* 新dio间隔 */
 static void
 new_dio_interval(rpl_instance_t *instance)
 {
@@ -94,6 +114,7 @@ new_dio_interval(rpl_instance_t *instance)
   instance->dio_next_delay = ticks;
 
   /* random number between I/2 and I */
+  /* 从I/2到I中取一个数作为Trickle */
   ticks = ticks / 2 + (ticks / 2 * (uint32_t)random_rand()) / RANDOM_RAND_MAX;
 
   /*
@@ -118,13 +139,17 @@ new_dio_interval(rpl_instance_t *instance)
 #endif /* RPL_CONF_STATS */
 
   /* reset the redundancy counter */
+  /* 重置冗余计数器 */
   instance->dio_counter = 0;
 
   /* schedule the timer */
+  /* 计划DIO定时器，未来选择xx间隔来发送 */
   PRINTF("RPL: Scheduling DIO timer %lu ticks in future (Interval)\n", ticks);
+  
   ctimer_set(&instance->dio_timer, ticks, &handle_dio_timer, instance);
 }
 /*---------------------------------------------------------------------------*/
+/* dio处理定时器 */
 static void
 handle_dio_timer(void *ptr)
 {
@@ -138,6 +163,7 @@ handle_dio_timer(void *ptr)
       dio_send_ok = 1;
     } else {
       PRINTF("RPL: Postponing DIO transmission since link local address is not ok\n");
+      //由于local link address没有准备好，推迟发送dio，用trickle推迟发送
       ctimer_set(&instance->dio_timer, CLOCK_SECOND, &handle_dio_timer, instance);
       return;
     }
@@ -145,23 +171,31 @@ handle_dio_timer(void *ptr)
 
   if(instance->dio_send) {
     /* send DIO if counter is less than desired redundancy */
+	/* 如果计数器小于期望冗余，就发DIO */
     if(instance->dio_redundancy != 0 && instance->dio_counter < instance->dio_redundancy) {
+// 如果配置了这个，虽然我不知道这个到底是什么东西
 #if RPL_CONF_STATS
       instance->dio_totsend++;
 #endif /* RPL_CONF_STATS */
-      dio_output(instance, NULL);
+      //发送dio
+	  dio_output(instance, NULL);
     } else {
+	  // 抑制dio发送
       PRINTF("RPL: Supressing DIO transmission (%d >= %d)\n",
              instance->dio_counter, instance->dio_redundancy);
     }
     instance->dio_send = 0;
-    PRINTF("RPL: Scheduling DIO timer %lu ticks in future (sent)\n",
+    // scheduling dio 定时器在未来的trickle
+	PRINTF("RPL: Scheduling DIO timer %lu ticks in future (sent)\n",
            instance->dio_next_delay);
-    ctimer_set(&instance->dio_timer, instance->dio_next_delay, handle_dio_timer, instance);
+    // 设置定时器
+	ctimer_set(&instance->dio_timer, instance->dio_next_delay, handle_dio_timer, instance);
   } else {
     /* check if we need to double interval */
-    if(instance->dio_intcurrent < instance->dio_intmin + instance->dio_intdoubl) {
-      instance->dio_intcurrent++;
+    //如果instance的dio_intcurrent小于instance dio_min+dio_intdouble
+	if(instance->dio_intcurrent < instance->dio_intmin + instance->dio_intdoubl) {
+      // 如果这样就double
+	  instance->dio_intcurrent++;
       PRINTF("RPL: DIO Timer interval doubled %d\n", instance->dio_intcurrent);
     }
     new_dio_interval(instance);
@@ -172,16 +206,20 @@ handle_dio_timer(void *ptr)
 #endif
 }
 /*---------------------------------------------------------------------------*/
+/* 重置周期计时器 */
 void
 rpl_reset_periodic_timer(void)
 {
+  // 下个dis发送的时间计算
   next_dis = RPL_DIS_INTERVAL / 2 +
     ((uint32_t)RPL_DIS_INTERVAL * (uint32_t)random_rand()) / RANDOM_RAND_MAX -
     RPL_DIS_START_DELAY;
+  // 设置定时器
   ctimer_set(&periodic_timer, CLOCK_SECOND, handle_periodic_timer, NULL);
 }
 /*---------------------------------------------------------------------------*/
 /* Resets the DIO timer in the instance to its minimal interval. */
+/* 将DIO定时器设置为其最小间隔 */
 void
 rpl_reset_dio_timer(rpl_instance_t *instance)
 {
@@ -199,16 +237,20 @@ rpl_reset_dio_timer(rpl_instance_t *instance)
 #endif /* RPL_LEAF_ONLY */
 }
 /*---------------------------------------------------------------------------*/
+/* 处理dao定时器 */
 static void handle_dao_timer(void *ptr);
+/* 设置dao生存时间计时器 */
 static void
 set_dao_lifetime_timer(rpl_instance_t *instance)
 {
+  // 如果rpl的模式是feather模式，就不用再继续了，因为它好像是不向上传消息的
   if(rpl_get_mode() == RPL_MODE_FEATHER) {
     return;
   }
 
   /* Set up another DAO within half the expiration time, if such a
      time has been configured */
+  /* 在终结时间一半的时候，就建立装配另一个DAO消息 */
   if(instance->lifetime_unit != 0xffff && instance->default_lifetime != 0xff) {
     clock_time_t expiration_time;
     expiration_time = (clock_time_t)instance->default_lifetime *
@@ -221,6 +263,7 @@ set_dao_lifetime_timer(rpl_instance_t *instance)
   }
 }
 /*---------------------------------------------------------------------------*/
+/* dao处理定时器 */
 static void
 handle_dao_timer(void *ptr)
 {
@@ -232,6 +275,7 @@ handle_dao_timer(void *ptr)
 
   instance = (rpl_instance_t *)ptr;
 
+  //如果dio还没发送好或者local address还没建立好，延迟发送
   if(!dio_send_ok && uip_ds6_get_link_local(ADDR_PREFERRED) == NULL) {
     PRINTF("RPL: Postpone DAO transmission\n");
     ctimer_set(&instance->dao_timer, CLOCK_SECOND, handle_dao_timer, instance);
@@ -239,11 +283,14 @@ handle_dao_timer(void *ptr)
   }
 
   /* Send the DAO to the DAO parent set -- the preferred parent in our case. */
+  /* 发送DAO给我们的父节点集，或者说是我们的最优父节点 */
   if(instance->current_dag->preferred_parent != NULL) {
     PRINTF("RPL: handle_dao_timer - sending DAO\n");
     /* Set the route lifetime to the default value. */
+	/* 设置默认路由时间 */
     dao_output(instance->current_dag->preferred_parent, instance->default_lifetime);
 
+// dao多播部分就不看了
 #if RPL_CONF_MULTICAST
     /* Send DAOs for multicast prefixes only if the instance is in MOP 3 */
     if(instance->mop == RPL_MOP_STORING_MULTICAST) {
@@ -279,6 +326,7 @@ handle_dao_timer(void *ptr)
   }
 }
 /*---------------------------------------------------------------------------*/
+/* 制定dao */
 static void
 schedule_dao(rpl_instance_t *instance, clock_time_t latency)
 {
@@ -308,18 +356,21 @@ schedule_dao(rpl_instance_t *instance, clock_time_t latency)
   }
 }
 /*---------------------------------------------------------------------------*/
+/* rpl制定dao*/
 void
 rpl_schedule_dao(rpl_instance_t *instance)
 {
   schedule_dao(instance, RPL_DAO_LATENCY);
 }
 /*---------------------------------------------------------------------------*/
+/* rpl立即制定dao */
 void
 rpl_schedule_dao_immediately(rpl_instance_t *instance)
 {
   schedule_dao(instance, 0);
 }
 /*---------------------------------------------------------------------------*/
+/* rpl取消dao */
 void
 rpl_cancel_dao(rpl_instance_t *instance)
 {
@@ -327,6 +378,7 @@ rpl_cancel_dao(rpl_instance_t *instance)
   ctimer_stop(&instance->dao_lifetime_timer);
 }
 /*---------------------------------------------------------------------------*/
+/* 又来这个probing了 */
 #if RPL_WITH_PROBING
 static rpl_parent_t *
 get_probing_target(rpl_dag_t *dag)
@@ -408,6 +460,7 @@ handle_probing_timer(void *ptr)
   /* Schedule next probing */
   rpl_schedule_probing(instance);
 
+//这还能打印neighbor表，挺屌啊
 #if DEBUG
   rpl_print_neighbor_list();
 #endif
@@ -421,3 +474,4 @@ rpl_schedule_probing(rpl_instance_t *instance)
 }
 #endif /* RPL_WITH_PROBING */
 /** @}*/
+

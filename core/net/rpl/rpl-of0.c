@@ -43,7 +43,8 @@
 
 #include "net/rpl/rpl-private.h"
 
-#define DEBUG DEBUG_NONE
+//打开debug，虽然没啥用，最后调用的还是mrhof
+#define DEBUG DEBUG_FULL
 #include "net/ip/uip-debug.h"
 
 static void reset(rpl_dag_t *);
@@ -59,11 +60,14 @@ rpl_of_t rpl_of0 = {
   best_dag,
   calculate_rank,
   update_metric_container,
+  // 这个地方mrhof是1
   0
 };
 
+// 定义默认的rank increase
 #define DEFAULT_RANK_INCREMENT  RPL_MIN_HOPRANKINC
 
+// 定义最小的difference
 #define MIN_DIFFERENCE (RPL_MIN_HOPRANKINC + RPL_MIN_HOPRANKINC / 2)
 
 static void
@@ -72,6 +76,7 @@ reset(rpl_dag_t *dag)
   PRINTF("RPL: Resetting OF0\n");
 }
 
+/* 计算rank 其实这个计算方式我看，和mrhof也差不多 */
 static rpl_rank_t
 calculate_rank(rpl_parent_t *p, rpl_rank_t base_rank)
 {
@@ -96,6 +101,7 @@ calculate_rank(rpl_parent_t *p, rpl_rank_t base_rank)
 
 }
 
+/* 选择最好的dag */
 static rpl_dag_t *
 best_dag(rpl_dag_t *d1, rpl_dag_t *d2)
 {
@@ -122,6 +128,7 @@ best_dag(rpl_dag_t *d1, rpl_dag_t *d2)
   }
 }
 
+/* 选择最好的parent */
 static rpl_parent_t *
 best_parent(rpl_parent_t *p1, rpl_parent_t *p2)
 {
@@ -164,6 +171,7 @@ best_parent(rpl_parent_t *p1, rpl_parent_t *p2)
   }
 }
 
+// update container，看起来，可以从这里下手，mrhof和这个，在这里不一样
 static void
 update_metric_container(rpl_instance_t *instance)
 {

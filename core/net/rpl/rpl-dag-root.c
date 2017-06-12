@@ -38,9 +38,11 @@
 
 #include <string.h>
 
-#define DEBUG DEBUG_NONE
+/* 打开debug */
+#define DEBUG DEBUG_FULL
 #include "net/ip/uip-debug.h"
 
+/* 定义了dag的grace period */
 #define RPL_DAG_GRACE_PERIOD (CLOCK_SECOND * 20 * 1)
 
 static struct uip_ds6_notification n;
@@ -51,15 +53,19 @@ static const uip_ipaddr_t *
 dag_root(void)
 {
   rpl_dag_t *dag;
-
+  
+  // 从dag的table中取出一个有用的dag
   dag = rpl_get_any_dag();
+  // 只要这个dag不是空
   if(dag != NULL) {
-    return &dag->dag_id;
+    // 返回这个dag的id
+	return &dag->dag_id;
   }
 
   return NULL;
 }
 /*---------------------------------------------------------------------------*/
+/* 看起来是取全局的ip地址 */
 static const uip_ipaddr_t *
 get_global_address(void)
 {
@@ -78,11 +84,13 @@ get_global_address(void)
   return ipaddr;
 }
 /*---------------------------------------------------------------------------*/
+/* 我不清楚，为什么会出现这个dag回滚 */
 static void
 create_dag_callback(void *ptr)
 {
   const uip_ipaddr_t *root, *ipaddr;
 
+  //拿到了这个dag的root和全局ip
   root = dag_root();
   ipaddr = get_global_address();
 
@@ -137,6 +145,7 @@ route_callback(int event, uip_ipaddr_t *route, uip_ipaddr_t *ipaddr,
   }
 }
 /*---------------------------------------------------------------------------*/
+/* 设置全局ip地址 */
 static uip_ipaddr_t *
 set_global_address(void)
 {
@@ -171,11 +180,13 @@ rpl_dag_root_init(void)
   if(!initialized) {
     to_become_root = 0;
     set_global_address();
+	// 原来这种callback是用来初始化
     uip_ds6_notification_add(&n, route_callback);
     initialized = 1;
   }
 }
 /*---------------------------------------------------------------------------*/
+/* 看起来是初始化root和dag */
 int
 rpl_dag_root_init_dag_immediately(void)
 {
@@ -183,7 +194,8 @@ rpl_dag_root_init_dag_immediately(void)
   int i;
   uint8_t state;
   uip_ipaddr_t *ipaddr = NULL;
-
+  
+  //初始化root和dag
   rpl_dag_root_init();
 
   for(i = 0; i < UIP_DS6_ADDR_NB; i++) {
@@ -196,17 +208,21 @@ rpl_dag_root_init_dag_immediately(void)
   }
 
   if(ipaddr != NULL) {
-    root_if = uip_ds6_addr_lookup(ipaddr);
+    // 获取root的ip地址
+	root_if = uip_ds6_addr_lookup(ipaddr);
     if(root_if != NULL) {
       rpl_dag_t *dag;
       uip_ipaddr_t prefix;
 
-      rpl_set_root(RPL_DEFAULT_INSTANCE, ipaddr);
-      dag = rpl_get_any_dag();
+      //rpl设置root节点
+	  rpl_set_root(RPL_DEFAULT_INSTANCE, ipaddr);
+      //获取dag
+	  dag = rpl_get_any_dag();
 
       /* If there are routes in this dag, we remove them all as we are
          from now on the new dag root and the old routes are wrong */
-      rpl_remove_routes(dag);
+      //移除这个网络中已有的全部路由
+	  rpl_remove_routes(dag);
       if(dag->instance != NULL &&
          dag->instance->def_route != NULL) {
 	uip_ds6_defrt_rm(dag->instance->def_route);
@@ -230,15 +246,18 @@ rpl_dag_root_init_dag_immediately(void)
 void
 rpl_dag_root_init_dag(void)
 {
+  // 初始化dag和root
   rpl_dag_root_init();
-
+  // 设置ctimer
   ctimer_set(&c, RPL_DAG_GRACE_PERIOD, create_dag_callback, NULL);
   to_become_root = 1;
 
+  // 发送一个dis消息来请求加入网络，这个传的地址是空，因此多播dis
   /* Send a DIS packet to request RPL info from neighbors. */
   dis_output(NULL);
 }
 /*---------------------------------------------------------------------------*/
+/* 这个应该判断是不是root的吧？ */
 int
 rpl_dag_root_is_root(void)
 {

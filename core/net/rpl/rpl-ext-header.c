@@ -50,13 +50,15 @@
 #include "net/rpl/rpl-private.h"
 #include "net/packetbuf.h"
 
-#define DEBUG DEBUG_NONE
+// 还是打开这个DEBUG
+#define DEBUG DEBUG_FULL
 #include "net/ip/uip-debug.h"
 
 #include <limits.h>
 #include <string.h>
 
 /*---------------------------------------------------------------------------*/
+/* 这里定义的是一堆uip的buffer */
 #define UIP_IP_BUF                ((struct uip_ip_hdr *)&uip_buf[UIP_LLH_LEN])
 #define UIP_EXT_BUF               ((struct uip_ext_hdr *)&uip_buf[uip_l2_l3_hdr_len])
 #define UIP_HBHO_BUF              ((struct uip_hbho_hdr *)&uip_buf[uip_l2_l3_hdr_len])
@@ -65,30 +67,36 @@
 #define UIP_EXT_HDR_OPT_PADN_BUF  ((struct uip_ext_hdr_opt_padn *)&uip_buf[uip_l2_l3_hdr_len + uip_ext_opt_offset])
 #define UIP_EXT_HDR_OPT_RPL_BUF   ((struct uip_ext_hdr_opt_rpl *)&uip_buf[uip_l2_l3_hdr_len + uip_ext_opt_offset])
 /*---------------------------------------------------------------------------*/
+/* 名字叫rpl修改头部 */
 int
 rpl_verify_header(int uip_ext_opt_offset)
 {
+  // first define some variables
   rpl_instance_t *instance;
   int down;
   uint16_t sender_rank;
   uint8_t sender_closer;
   uip_ds6_route_t *route;
 
+  // 健壮性判断，看看是不是hop-by-hop extension
   if(UIP_HBHO_BUF->len != RPL_HOP_BY_HOP_LEN - 8) {
     PRINTF("RPL: Hop-by-hop extension header has wrong size\n");
     return 1;
   }
-
+  
+  // 是不是真的有这个hop-by-hop extension
   if(UIP_EXT_HDR_OPT_RPL_BUF->opt_type != UIP_EXT_HDR_OPT_RPL) {
     PRINTF("RPL: Non RPL Hop-by-hop option\n");
     return 1;
   }
 
+  // 这个是判断head option的长度的
   if(UIP_EXT_HDR_OPT_RPL_BUF->opt_len != RPL_HDR_OPT_LEN) {
     PRINTF("RPL: Bad header option! (wrong length)\n");
     return 1;
   }
-
+  
+  // 判断instance可不可识别
   instance = rpl_get_instance(UIP_EXT_HDR_OPT_RPL_BUF->instance);
   if(instance == NULL) {
     PRINTF("RPL: Unknown instance: %u\n",
@@ -96,6 +104,7 @@ rpl_verify_header(int uip_ext_opt_offset)
     return 1;
   }
 
+  // 如果forward出错的时候，这么做
   if(UIP_EXT_HDR_OPT_RPL_BUF->flags & RPL_HDR_OPT_FWD_ERR) {
     PRINTF("RPL: Forward error!\n");
     /* We should try to repair it by removing the neighbor that caused
@@ -112,7 +121,8 @@ rpl_verify_header(int uip_ext_opt_offset)
     /* drop the packet as it is not routable */
     return 1;
   }
-
+ 
+  // 判断instance里面有没有dag
   if(!instance->current_dag->joined) {
     PRINTF("RPL: No DAG in the instance\n");
     return 1;
@@ -124,14 +134,17 @@ rpl_verify_header(int uip_ext_opt_offset)
   }
 
   sender_rank = UIP_HTONS(UIP_EXT_HDR_OPT_RPL_BUF->senderrank);
+  // 看看sender的rank是不是比自己的要小，返回的应该是1或者0吧
   sender_closer = sender_rank < instance->current_dag->rank;
 
+  // 打印内容，到底是上行还是下行，然后是不是sender close，sender rank和自己的rank
   PRINTF("RPL: Packet going %s, sender closer %d (%d < %d)\n", down == 1 ? "down" : "up",
 	 sender_closer,
 	 sender_rank,
 	 instance->current_dag->rank
 	 );
 
+  // 检测到环路的判断
   if((down && !sender_closer) || (!down && sender_closer)) {
     PRINTF("RPL: Loop detected - senderrank: %d my-rank: %d sender_closer: %d\n",
 	   sender_rank, instance->current_dag->rank,
@@ -154,6 +167,7 @@ rpl_verify_header(int uip_ext_opt_offset)
   return 0;
 }
 /*---------------------------------------------------------------------------*/
+/* about rpl option */
 static void
 set_rpl_opt(unsigned uip_ext_opt_offset)
 {
@@ -177,6 +191,7 @@ set_rpl_opt(unsigned uip_ext_opt_offset)
   }
 }
 /*---------------------------------------------------------------------------*/
+/* rpl 更新header 使之empty？ */
 int
 rpl_update_header_empty(void)
 {
@@ -276,6 +291,7 @@ rpl_update_header_empty(void)
   }
 }
 /*---------------------------------------------------------------------------*/
+/* 也是一种更新header */
 int
 rpl_update_header_final(uip_ipaddr_t *addr)
 {
@@ -313,6 +329,7 @@ rpl_update_header_final(uip_ipaddr_t *addr)
   return 0;
 }
 /*---------------------------------------------------------------------------*/
+/* 移除header */
 void
 rpl_remove_header(void)
 {
@@ -338,6 +355,7 @@ rpl_remove_header(void)
   }
 }
 /*---------------------------------------------------------------------------*/
+/* rpl header 反转，应该是改变rpl路由方向的意思*/
 uint8_t
 rpl_invert_header(void)
 {
@@ -373,6 +391,7 @@ rpl_invert_header(void)
   }
 }
 /*---------------------------------------------------------------------------*/
+/* rpl 插入头部 */
 void
 rpl_insert_header(void)
 {

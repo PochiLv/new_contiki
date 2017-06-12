@@ -101,10 +101,18 @@ PROCESS_THREAD(sender_node_process, ev, data)
                       NULL, UDP_PORT, receiver);
 
   etimer_set(&periodic_timer, SEND_INTERVAL);
+
+  //20170228 modified
+  printf("send_interval:%u\r\n",SEND_INTERVAL);
+  printf("send_time:%u\r\n",SEND_TIME);
+  printf("clock_second:%u\r\n",CLOCK_SECOND);
+
+
   while(1) {
 
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&periodic_timer));
     etimer_reset(&periodic_timer);
+    printf("send_time:%u\r\n",SEND_TIME);
     etimer_set(&send_timer, SEND_TIME);
 
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&send_timer));

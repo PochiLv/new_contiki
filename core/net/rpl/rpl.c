@@ -42,14 +42,16 @@
  * @{
  */
 
+/* include some head file */
 #include "net/ip/uip.h"
 #include "net/ip/tcpip.h"
 #include "net/ipv6/uip-ds6.h"
 #include "net/ipv6/uip-icmp6.h"
 #include "net/rpl/rpl-private.h"
 #include "net/ipv6/multicast/uip-mcast6.h"
-
-#define DEBUG DEBUG_NONE
+/* define the DEBUG identifier */
+//#define DEBUG DEBUG_NONE
+#define DEBUG DEBUG_FULL
 #include "net/ip/uip-debug.h"
 
 #include <limits.h>
@@ -59,8 +61,10 @@
 rpl_stats_t rpl_stats;
 #endif
 
+/* i think, we can also difine it as feather mode */
 static enum rpl_mode mode = RPL_MODE_MESH;
 /*---------------------------------------------------------------------------*/
+/* get the rpl mode */
 enum rpl_mode
 rpl_get_mode(void)
 {
@@ -84,6 +88,7 @@ rpl_set_mode(enum rpl_mode m)
     mode = m;
 
     if(default_instance != NULL) {
+      // set some default value
       rpl_schedule_dao_immediately(default_instance);
     }
   } else if(m == RPL_MODE_FEATHER) {
@@ -101,6 +106,7 @@ rpl_set_mode(enum rpl_mode m)
   return oldmode;
 }
 /*---------------------------------------------------------------------------*/
+/* rpl clean up the route */
 void
 rpl_purge_routes(void)
 {

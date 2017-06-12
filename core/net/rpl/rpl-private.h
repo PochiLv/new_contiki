@@ -1,3 +1,8 @@
+/***************************************************************
+
+		这个好像是定义的各种宏定义也好，头文件也好
+
+***************************************************************/
 /*
  * Copyright (c) 2010, Swedish Institute of Computer Science.
  * All rights reserved.
@@ -49,6 +54,7 @@
 /*---------------------------------------------------------------------------*/
 /** \brief Is IPv6 address addr the link-local, all-RPL-nodes
     multicast address? */
+// 多播地址
 #define uip_is_addr_linklocal_rplnodes_mcast(addr)	    \
   ((addr)->u8[0] == 0xff) &&				    \
   ((addr)->u8[1] == 0x02) &&				    \
@@ -67,6 +73,7 @@
   uip_ip6addr((addr), 0xff02, 0, 0, 0, 0, 0, 0, 0x001a)
 /*---------------------------------------------------------------------------*/
 /* RPL message types */
+/* RPL消息类型 */
 #define RPL_CODE_DIS                   0x00   /* DAG Information Solicitation */
 #define RPL_CODE_DIO                   0x01   /* DAG Information Option */
 #define RPL_CODE_DAO                   0x02   /* Destination Advertisement Option */
@@ -77,6 +84,7 @@
 #define RPL_CODE_SEC_DAO_ACK           0x83   /* Secure DAO ACK */
 
 /* RPL control message options. */
+/* RPL控制消息的option */
 #define RPL_OPTION_PAD1                  0
 #define RPL_OPTION_PADN                  1
 #define RPL_OPTION_DAG_METRIC_CONTAINER  2
@@ -92,6 +100,7 @@
 #define RPL_DAO_D_FLAG                   0x40 /* DODAG ID present */
 /*---------------------------------------------------------------------------*/
 /* RPL IPv6 extension header option. */
+/* IPv6 extension header option */
 #define RPL_HDR_OPT_LEN			4
 #define RPL_HOP_BY_HOP_LEN		(RPL_HDR_OPT_LEN + 2 + 2)
 #define RPL_HDR_OPT_DOWN		0x80
@@ -102,8 +111,10 @@
 #define RPL_HDR_OPT_FWD_ERR_SHIFT   	5
 /*---------------------------------------------------------------------------*/
 /* Default values for RPL constants and variables. */
+/* 默认的变量和常量 */
 
 /* The default value for the DAO timer. */
+/* 默认的DAO定时器配置 */
 #ifdef RPL_CONF_DAO_LATENCY
 #define RPL_DAO_LATENCY                 RPL_CONF_DAO_LATENCY
 #else /* RPL_CONF_DAO_LATENCY */

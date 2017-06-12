@@ -1,3 +1,8 @@
+/*******************************************************************
+
+			这个文件应该是rpl中比较长的源码了
+
+********************************************************************/
 /*
  * Copyright (c) 2010, Swedish Institute of Computer Science.
  * All rights reserved.
@@ -43,6 +48,7 @@
  * @{
  */
 
+/* include一些所需要的文件 */
 #include "contiki.h"
 #include "net/rpl/rpl-private.h"
 #include "net/ip/uip.h"
@@ -57,15 +63,18 @@
 #include <limits.h>
 #include <string.h>
 
-#define DEBUG DEBUG_NONE
+// 一如既往，开启调试
+#define DEBUG DEBUG_FULL
 #include "net/ip/uip-debug.h"
 
 /*---------------------------------------------------------------------------*/
+/* 拿一下其他文件中定义过的of */
 extern rpl_of_t RPL_OF;
 static rpl_of_t * const objective_functions[] = {&RPL_OF};
 
 /*---------------------------------------------------------------------------*/
 /* RPL definitions. */
+/* 看看到底定义过ground没有，没有就默认0 */
 
 #ifndef RPL_CONF_GROUNDED
 #define RPL_GROUNDED                    0
@@ -75,38 +84,52 @@ static rpl_of_t * const objective_functions[] = {&RPL_OF};
 
 /*---------------------------------------------------------------------------*/
 /* Per-parent RPL information */
+/* 每个的parents的RPL信息，通过邻居表的形式体现出来 */
 NBR_TABLE_GLOBAL(rpl_parent_t, rpl_parents);
 /*---------------------------------------------------------------------------*/
 /* Allocate instance table. */
+/* 分配instance table */
 rpl_instance_t instance_table[RPL_MAX_INSTANCES];
 rpl_instance_t *default_instance;
 
 /*---------------------------------------------------------------------------*/
+/* 打印邻居表 */
 void
 rpl_print_neighbor_list()
 {
+  // 如果默认的instance不是空的，就是有instance，有dag，有of，可以计算rank
   if(default_instance != NULL && default_instance->current_dag != NULL &&
       default_instance->of != NULL && default_instance->of->calculate_rank != NULL) {
-    int curr_dio_interval = default_instance->dio_intcurrent;
+    // 赋值现有的dio interval
+	int curr_dio_interval = default_instance->dio_intcurrent;
+	// 赋值现有的rank
     int curr_rank = default_instance->current_dag->rank;
-    rpl_parent_t *p = nbr_table_head(rpl_parents);
-    clock_time_t now = clock_time();
+    // 这个应该是得到rpl parent table的那个头指针吧
+	rpl_parent_t *p = nbr_table_head(rpl_parents);
+    // 得到现在的clock_time
+	clock_time_t now = clock_time();
 
+	// 这里打印的是rank值、dio间隔、邻居数
     printf("RPL: rank %u dioint %u, %u nbr(s)\n", curr_rank, curr_dio_interval, uip_ds6_nbr_num());
-    while(p != NULL) {
+    // 如果邻居表的头指针不为空，也就是这个邻居表不为空
+	while(p != NULL) {
       uip_ds6_nbr_t *nbr = rpl_get_nbr(p);
-      printf("RPL: nbr %3u %5u, %5u => %5u %c (last tx %u min ago)\n",
+      // 打印出完整的rpl邻居表的信息
+	  printf("RPL: nbr %3u %5u, %5u => %5u %c (last tx %u min ago)\n",
           nbr_table_get_lladdr(rpl_parents, p)->u8[7],
           p->rank, nbr ? nbr->link_metric : 0,
           default_instance->of->calculate_rank(p, 0),
           p == default_instance->current_dag->preferred_parent ? '*' : ' ',
           (unsigned)((now - p->last_tx_time) / (60 * CLOCK_SECOND)));
-      p = nbr_table_next(rpl_parents, p);
+      // 指针指向邻居表中的下一个节点
+	  p = nbr_table_next(rpl_parents, p);
     }
+	// 打印提示语，邻居表结束
     printf("RPL: end of list\n");
   }
 }
 /*---------------------------------------------------------------------------*/
+/* 获取邻居表方法 */
 uip_ds6_nbr_t *
 rpl_get_nbr(rpl_parent_t *parent)
 {
@@ -119,9 +142,11 @@ rpl_get_nbr(rpl_parent_t *parent)
   }
 }
 /*---------------------------------------------------------------------------*/
+/* 邻居节点回滚 */
 static void
 nbr_callback(void *ptr)
 {
+  // 移除rpl父节点
   rpl_remove_parent(ptr);
 }
 
@@ -131,6 +156,7 @@ rpl_dag_init(void)
   nbr_table_register(rpl_parents, (nbr_table_callback *)nbr_callback);
 }
 /*---------------------------------------------------------------------------*/
+/* 通过link local address 获取父节点 */
 rpl_parent_t *
 rpl_get_parent(uip_lladdr_t *addr)
 {
@@ -138,6 +164,7 @@ rpl_get_parent(uip_lladdr_t *addr)
   return p;
 }
 /*---------------------------------------------------------------------------*/
+/* 获取rpl rank值 */
 rpl_rank_t
 rpl_get_parent_rank(uip_lladdr_t *addr)
 {
@@ -149,6 +176,7 @@ rpl_get_parent_rank(uip_lladdr_t *addr)
   }
 }
 /*---------------------------------------------------------------------------*/
+/* 获取rpl链路度量 */
 uint16_t
 rpl_get_parent_link_metric(const uip_lladdr_t *addr)
 {
@@ -162,6 +190,7 @@ rpl_get_parent_link_metric(const uip_lladdr_t *addr)
   }
 }
 /*---------------------------------------------------------------------------*/
+/* 获取parent ip 地址 */
 uip_ipaddr_t *
 rpl_get_parent_ipaddr(rpl_parent_t *p)
 {
@@ -169,6 +198,7 @@ rpl_get_parent_ipaddr(rpl_parent_t *p)
   return uip_ds6_nbr_ipaddr_from_lladdr((uip_lladdr_t *)lladdr);
 }
 /*---------------------------------------------------------------------------*/
+/* 设置最优父节点 */
 static void
 rpl_set_preferred_parent(rpl_dag_t *dag, rpl_parent_t *p)
 {
@@ -212,6 +242,7 @@ lollipop_greater_than(int a, int b)
 }
 /*---------------------------------------------------------------------------*/
 /* Remove DAG parents with a rank that is at least the same as minimum_rank. */
+/* 移除parent */
 static void
 remove_parents(rpl_dag_t *dag, rpl_rank_t minimum_rank)
 {
@@ -229,6 +260,7 @@ remove_parents(rpl_dag_t *dag, rpl_rank_t minimum_rank)
   }
 }
 /*---------------------------------------------------------------------------*/
+/* 使父节点失效、作废 */
 static void
 nullify_parents(rpl_dag_t *dag, rpl_rank_t minimum_rank)
 {
@@ -246,6 +278,7 @@ nullify_parents(rpl_dag_t *dag, rpl_rank_t minimum_rank)
   }
 }
 /*---------------------------------------------------------------------------*/
+/* 判断该不该发送dao */
 static int
 should_send_dao(rpl_instance_t *instance, rpl_dio_t *dio, rpl_parent_t *p)
 {
@@ -258,6 +291,7 @@ should_send_dao(rpl_instance_t *instance, rpl_dio_t *dio, rpl_parent_t *p)
     (lollipop_greater_than(dio->dtsn, p->dtsn));
 }
 /*---------------------------------------------------------------------------*/
+/* 判断rank值是否合适 */
 static int
 acceptable_rank(rpl_dag_t *dag, rpl_rank_t rank)
 {
@@ -266,6 +300,7 @@ acceptable_rank(rpl_dag_t *dag, rpl_rank_t rank)
      DAG_RANK(rank, dag->instance) <= DAG_RANK(dag->min_rank + dag->instance->max_rankinc, dag->instance));
 }
 /*---------------------------------------------------------------------------*/
+/* 获取instance中的dag */
 static rpl_dag_t *
 get_dag(uint8_t instance_id, uip_ipaddr_t *dag_id)
 {
@@ -288,6 +323,7 @@ get_dag(uint8_t instance_id, uip_ipaddr_t *dag_id)
   return NULL;
 }
 /*---------------------------------------------------------------------------*/
+/* 设置root节点 */
 rpl_dag_t *
 rpl_set_root(uint8_t instance_id, uip_ipaddr_t *dag_id)
 {
@@ -295,13 +331,15 @@ rpl_set_root(uint8_t instance_id, uip_ipaddr_t *dag_id)
   rpl_instance_t *instance;
   uint8_t version;
   int i;
-
   version = RPL_LOLLIPOP_INIT;
   instance = rpl_get_instance(instance_id);
+  printf("20170524 test %d ----ver--%d--instanceid%d\n",dag->used,version,instance_id);
   if(instance != NULL) {
+    printf("20170524 test if instance null%d \n",RPL_MAX_DAG_PER_INSTANCE);
     for(i = 0; i < RPL_MAX_DAG_PER_INSTANCE; ++i) {
       dag = &instance->dag_table[i];
       if(dag->used) {
+	
         if(uip_ipaddr_cmp(&dag->dag_id, dag_id)) {
           version = dag->version;
           RPL_LOLLIPOP_INCREMENT(version);
@@ -372,6 +410,7 @@ rpl_set_root(uint8_t instance_id, uip_ipaddr_t *dag_id)
   return dag;
 }
 /*---------------------------------------------------------------------------*/
+/* 修复根节点，但是会返回到底修复了没有 */
 int
 rpl_repair_root(uint8_t instance_id)
 {
@@ -392,6 +431,7 @@ rpl_repair_root(uint8_t instance_id)
   return 1;
 }
 /*---------------------------------------------------------------------------*/
+/* 根据prefix设置ip地址 */
 static void
 set_ip_from_prefix(uip_ipaddr_t *ipaddr, rpl_prefix_t *prefix)
 {
@@ -400,6 +440,7 @@ set_ip_from_prefix(uip_ipaddr_t *ipaddr, rpl_prefix_t *prefix)
   uip_ds6_set_addr_iid(ipaddr, &uip_lladdr);
 }
 /*---------------------------------------------------------------------------*/
+/* 检查到底新的prefix和旧的prefix有没有不同 */
 static void
 check_prefix(rpl_prefix_t *last_prefix, rpl_prefix_t *new_prefix)
 {
@@ -436,6 +477,7 @@ check_prefix(rpl_prefix_t *last_prefix, rpl_prefix_t *new_prefix)
   }
 }
 /*---------------------------------------------------------------------------*/
+/* rpl设置prefix函数 */
 int
 rpl_set_prefix(rpl_dag_t *dag, uip_ipaddr_t *prefix, unsigned len)
 {
@@ -465,6 +507,7 @@ rpl_set_prefix(rpl_dag_t *dag, uip_ipaddr_t *prefix, unsigned len)
   return 1;
 }
 /*---------------------------------------------------------------------------*/
+/* rpl设置默认路由 */
 int
 rpl_set_default_route(rpl_instance_t *instance, uip_ipaddr_t *from)
 {
@@ -496,6 +539,7 @@ rpl_set_default_route(rpl_instance_t *instance, uip_ipaddr_t *from)
   return 1;
 }
 /*---------------------------------------------------------------------------*/
+/* rpl聚合instance 返回一个instance table */
 rpl_instance_t *
 rpl_alloc_instance(uint8_t instance_id)
 {
@@ -517,6 +561,7 @@ rpl_alloc_instance(uint8_t instance_id)
   return NULL;
 }
 /*---------------------------------------------------------------------------*/
+/* RPL 聚合dag 返回dag表 */
 rpl_dag_t *
 rpl_alloc_dag(uint8_t instance_id, uip_ipaddr_t *dag_id)
 {
@@ -547,18 +592,21 @@ rpl_alloc_dag(uint8_t instance_id, uip_ipaddr_t *dag_id)
   return NULL;
 }
 /*---------------------------------------------------------------------------*/
+/* 设置默认instance */
 void
 rpl_set_default_instance(rpl_instance_t *instance)
 {
   default_instance = instance;
 }
 /*---------------------------------------------------------------------------*/
+/* 获取默认instance */
 rpl_instance_t *
 rpl_get_default_instance(void)
 {
   return default_instance;
 }
 /*---------------------------------------------------------------------------*/
+/* 释放instance，应该就是移除吧 */
 void
 rpl_free_instance(rpl_instance_t *instance)
 {
@@ -590,6 +638,7 @@ rpl_free_instance(rpl_instance_t *instance)
   instance->used = 0;
 }
 /*---------------------------------------------------------------------------*/
+/* 移除dag */
 void
 rpl_free_dag(rpl_dag_t *dag)
 {
@@ -612,6 +661,7 @@ rpl_free_dag(rpl_dag_t *dag)
   dag->used = 0;
 }
 /*---------------------------------------------------------------------------*/
+/* 添加父节点 */
 rpl_parent_t *
 rpl_add_parent(rpl_dag_t *dag, rpl_dio_t *dio, uip_ipaddr_t *addr)
 {
@@ -649,6 +699,7 @@ rpl_add_parent(rpl_dag_t *dag, rpl_dio_t *dio, uip_ipaddr_t *addr)
   return p;
 }
 /*---------------------------------------------------------------------------*/
+/* 查找父节点 */
 static rpl_parent_t *
 find_parent_any_dag_any_instance(uip_ipaddr_t *addr)
 {
@@ -657,6 +708,7 @@ find_parent_any_dag_any_instance(uip_ipaddr_t *addr)
   return nbr_table_get_from_lladdr(rpl_parents, (linkaddr_t *)lladdr);
 }
 /*---------------------------------------------------------------------------*/
+/* 在某个特定的dag中查找父节点 */
 rpl_parent_t *
 rpl_find_parent(rpl_dag_t *dag, uip_ipaddr_t *addr)
 {
@@ -668,6 +720,7 @@ rpl_find_parent(rpl_dag_t *dag, uip_ipaddr_t *addr)
   }
 }
 /*---------------------------------------------------------------------------*/
+/* 在某个instance中查到dag */
 static rpl_dag_t *
 find_parent_dag(rpl_instance_t *instance, uip_ipaddr_t *addr)
 {
@@ -679,6 +732,7 @@ find_parent_dag(rpl_instance_t *instance, uip_ipaddr_t *addr)
   }
 }
 /*---------------------------------------------------------------------------*/
+/* 在指定的instace，不指定的dag中查找父节点 */
 rpl_parent_t *
 rpl_find_parent_any_dag(rpl_instance_t *instance, uip_ipaddr_t *addr)
 {
@@ -690,6 +744,7 @@ rpl_find_parent_any_dag(rpl_instance_t *instance, uip_ipaddr_t *addr)
   }
 }
 /*---------------------------------------------------------------------------*/
+/* 选择dag，指定instace，parent，返回dag */
 rpl_dag_t *
 rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
 {
@@ -784,6 +839,7 @@ rpl_select_dag(rpl_instance_t *instance, rpl_parent_t *p)
   return best_dag;
 }
 /*---------------------------------------------------------------------------*/
+/* 返回最佳父节点列表 */
 static rpl_parent_t *
 best_parent(rpl_dag_t *dag)
 {
@@ -806,6 +862,7 @@ best_parent(rpl_dag_t *dag)
   return best;
 }
 /*---------------------------------------------------------------------------*/
+/* 选择最佳父节点 */
 rpl_parent_t *
 rpl_select_parent(rpl_dag_t *dag)
 {
@@ -821,6 +878,7 @@ rpl_select_parent(rpl_dag_t *dag)
   return best;
 }
 /*---------------------------------------------------------------------------*/
+/* 输入父节点，移除此父节点 */
 void
 rpl_remove_parent(rpl_parent_t *parent)
 {
@@ -833,6 +891,7 @@ rpl_remove_parent(rpl_parent_t *parent)
   nbr_table_remove(rpl_parents, parent);
 }
 /*---------------------------------------------------------------------------*/
+/* rpl使得parent无效 */
 void
 rpl_nullify_parent(rpl_parent_t *parent)
 {
@@ -862,6 +921,7 @@ rpl_nullify_parent(rpl_parent_t *parent)
   PRINTF("\n");
 }
 /*---------------------------------------------------------------------------*/
+/* 移除父节点 */
 void
 rpl_move_parent(rpl_dag_t *dag_src, rpl_dag_t *dag_dst, rpl_parent_t *parent)
 {
@@ -1109,6 +1169,7 @@ rpl_add_dag(uip_ipaddr_t *from, rpl_dio_t *dio)
 #endif /* RPL_MAX_DAG_PER_INSTANCE > 1 */
 
 /*---------------------------------------------------------------------------*/
+/* 全局修复 */
 static void
 global_repair(uip_ipaddr_t *from, rpl_dag_t *dag, rpl_dio_t *dio)
 {
@@ -1145,6 +1206,7 @@ global_repair(uip_ipaddr_t *from, rpl_dag_t *dag, rpl_dio_t *dio)
   RPL_STAT(rpl_stats.global_repairs++);
 }
 /*---------------------------------------------------------------------------*/
+/* 本地修复 */
 void
 rpl_local_repair(rpl_instance_t *instance)
 {
@@ -1261,7 +1323,9 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
   instance = rpl_get_instance(dio->instance_id);
 
   if(dag != NULL && instance != NULL) {
+    
     if(lollipop_greater_than(dio->version, dag->version)) {
+      
       if(dag->rank == ROOT_RANK(instance)) {
 	PRINTF("RPL: Root received inconsistent DIO version number\n");
 	dag->version = dio->version;
@@ -1281,6 +1345,7 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
     }
 
     if(lollipop_greater_than(dag->version, dio->version)) {
+      
       /* The DIO sender is on an older version of the DAG. */
       PRINTF("RPL: old version received => inconsistency detected\n");
       if(dag->joined) {
@@ -1291,12 +1356,14 @@ rpl_process_dio(uip_ipaddr_t *from, rpl_dio_t *dio)
   }
 
   if(instance == NULL) {
+    
     PRINTF("RPL: New instance detected: Joining...\n");
     rpl_join_instance(from, dio);
     return;
   }
 
   if(instance->current_dag->rank == ROOT_RANK(instance) && instance->current_dag != dag) {
+    PRINTF("-------20170524 test1------4\n");
     PRINTF("RPL: Root ignored DIO for different DAG\n");
     return;
   }
